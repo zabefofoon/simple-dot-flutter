@@ -9,6 +9,27 @@ import 'package:uuid/uuid.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+const _downloadsChannel = MethodChannel('com.example.justpixelstudio/downloads');
+
+Future<void> openDownloadsFolder() async {
+  await _downloadsChannel.invokeMethod('openDownloads');
+}
+
+Future<String?> saveBase64ToDownloads({
+  required String base64,
+  required String filename, // 반드시 확장자 포함 (예: image.gif / archive.zip / data.json)
+  required String mime,     // 예: image/gif, image/png, application/zip, application/json
+}) async {
+  final bytes = base64Decode(base64);
+  final uri = await _downloadsChannel.invokeMethod<String>('saveToDownloads', {
+    'filename': filename,
+    'mime': mime,
+    'bytes': bytes,
+  });
+  return uri;
+}
+
+
 Future<String> _getOrCreateGaUserId() async {
   final prefs = await SharedPreferences.getInstance();
   const key = 'ga_user_id';
@@ -78,11 +99,23 @@ class _WebPageState extends State<WebPage> {
                 setState(() => _isWebPageLoaded = true);
                 break;
               case 'updateCookies':
-                final jsResult = await _controller.runJavaScriptReturningResult('document.cookie');
+                final jsResult = await _controller.runJavaScriptReturningResult(
+                  'document.cookie',
+                );
                 final raw = jsResult is String ? jsResult : jsResult.toString();
-                final cookieHeader = raw.replaceAll(RegExp(r'^"|"$'), ''); // 양끝 " 제거
+                final cookieHeader = raw.replaceAll(
+                  RegExp(r'^"|"$'),
+                  '',
+                ); // 양끝 " 제거
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.setString('appCookies', cookieHeader);
+                break;
+              case 'download': // ✅ 한 번에 받는 케이스
+                await _saveBase64File(
+                  base64: data['base64'],
+                  filename: data['filename'],
+                  mime: data['mime'],
+                );
                 break;
             }
           } catch (e) {
@@ -113,25 +146,34 @@ class _WebPageState extends State<WebPage> {
       SharedPreferences.getInstance().then((prefs) {
         final String cookies = prefs.getString('appCookies') ?? '';
 
-        cookies.split(';').fold<List<Map<String, String>>>([], (acc,current) {
-          List<String> parts = current.split("=");
-          if (parts.length >= 2) {
-            Map<String, String> map = {};
-            final key = parts[0].trim();
-            final value = parts.sublist(1).join('=').trim();
-            map['key'] = key;
-            map['value'] = value;
-            acc.add(map);
-          }
+        cookies
+            .split(';')
+            .fold<List<Map<String, String>>>([], (acc, current) {
+              List<String> parts = current.split("=");
+              if (parts.length >= 2) {
+                Map<String, String> map = {};
+                final key = parts[0].trim();
+                final value = parts.sublist(1).join('=').trim();
+                map['key'] = key;
+                map['value'] = value;
+                acc.add(map);
+              }
 
-          return acc;
-        }).forEach((map) {
-          final key = map['key'];
-          final value = map['value'];
-          if (key != null && value != null) {
-            cookieManager.setCookie(WebViewCookie(name: key, value: value, domain: '192.168.219.107'));
-          }
-        });
+              return acc;
+            })
+            .forEach((map) {
+              final key = map['key'];
+              final value = map['value'];
+              if (key != null && value != null) {
+                cookieManager.setCookie(
+                  WebViewCookie(
+                    name: key,
+                    value: value,
+                    domain: '192.168.219.107',
+                  ),
+                );
+              }
+            });
 
         _getOrCreateGaUserId().then((uuid) {
           _controller.loadRequest(
@@ -152,6 +194,31 @@ class _WebPageState extends State<WebPage> {
       );
     } else {
       _webViewWidget = WebViewWidget(controller: _controller);
+    }
+  }
+
+  Future<void> _saveBase64File({
+    required String base64,
+    required String
+    filename, // 확장자 포함: image.gif / data.json / image.png / archive.zip
+    required String
+    mime, // 예: image/gif, application/json, image/png, application/zip
+  }) async {
+    try {
+      final uri = await saveBase64ToDownloads(
+        base64: base64,
+        filename: filename,
+        mime: mime,
+      );
+      if (uri != null) {
+        debugPrint('Saved to Downloads: $uri');
+        // 원하면 바로 열기:
+        openDownloadsFolder();
+      } else {
+        debugPrint('save returned null');
+      }
+    } catch (e) {
+      debugPrint('save error: $e');
     }
   }
 
