@@ -56,7 +56,7 @@ class _WebPageState extends State<WebPage> {
   late final WebViewController _controller;
   late final WebViewWidget _webViewWidget;
   DateTime? currentBackPressTime;
-
+  final WebViewCookieManager cookieManager = WebViewCookieManager();
   bool _isWebPageLoaded = false;
 
   @override
@@ -72,15 +72,17 @@ class _WebPageState extends State<WebPage> {
         onMessageReceived: (JavaScriptMessage message) async {
           try {
             final data = jsonDecode(message.message) as Map<String, dynamic>;
-            debugPrint(data.toString());
+
             switch (data['type']) {
               case "load":
                 setState(() => _isWebPageLoaded = true);
                 break;
-              case 'setLocale':
-                final newLocale = data['locale'] as String;
+              case 'updateCookies':
+                final jsResult = await _controller.runJavaScriptReturningResult('document.cookie');
+                final raw = jsResult is String ? jsResult : jsResult.toString();
+                final cookieHeader = raw.replaceAll(RegExp(r'^"|"$'), ''); // 양끝 " 제거
                 final prefs = await SharedPreferences.getInstance();
-                await prefs.setString('appLocale', newLocale);
+                await prefs.setString('appCookies', cookieHeader);
                 break;
             }
           } catch (e) {
@@ -97,7 +99,7 @@ class _WebPageState extends State<WebPage> {
           onProgress: (progress) {
             debugPrint('Loading: $progress%');
           },
-          onPageFinished: (url) {
+          onPageFinished: (url) async {
             debugPrint('Finish: $url');
           },
           onWebResourceError: (error) =>
@@ -107,12 +109,34 @@ class _WebPageState extends State<WebPage> {
 
     PackageInfo.fromPlatform().then((packageInfo) {
       final appVersion = '${packageInfo.version}_${packageInfo.buildNumber}';
+
       SharedPreferences.getInstance().then((prefs) {
-        String locale = prefs.getString('appLocale') != null ? '/${prefs.getString('appLocale')}' : "";
+        final String cookies = prefs.getString('appCookies') ?? '';
+
+        cookies.split(';').fold<List<Map<String, String>>>([], (acc,current) {
+          List<String> parts = current.split("=");
+          if (parts.length >= 2) {
+            Map<String, String> map = {};
+            final key = parts[0].trim();
+            final value = parts.sublist(1).join('=').trim();
+            map['key'] = key;
+            map['value'] = value;
+            acc.add(map);
+          }
+
+          return acc;
+        }).forEach((map) {
+          final key = map['key'];
+          final value = map['value'];
+          if (key != null && value != null) {
+            cookieManager.setCookie(WebViewCookie(name: key, value: value, domain: '192.168.219.107'));
+          }
+        });
+
         _getOrCreateGaUserId().then((uuid) {
           _controller.loadRequest(
             Uri.parse(
-              'http://192.168.219.107:3000$locale/canvas?platform=$os&uid=$uuid&appVersion=$appVersion',
+              'http://192.168.219.107:3000/canvas?platform=$os&uid=$uuid&appVersion=$appVersion',
             ),
           );
         });
@@ -151,8 +175,8 @@ class _WebPageState extends State<WebPage> {
             final now = DateTime.now();
             final shouldShowToast =
                 currentBackPressTime == null ||
-                    now.difference(currentBackPressTime!) >
-                        const Duration(seconds: 2);
+                now.difference(currentBackPressTime!) >
+                    const Duration(seconds: 2);
 
             if (shouldShowToast) {
               setState(() => currentBackPressTime = now);
