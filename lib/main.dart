@@ -5,11 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
-const _downloadsChannel = MethodChannel('com.example.justpixelstudio/downloads');
+const _downloadsChannel = MethodChannel(
+  'com.example.justpixelstudio/downloads',
+);
 
 Future<void> openDownloadsFolder() async {
   await _downloadsChannel.invokeMethod('openDownloads');
@@ -17,8 +20,10 @@ Future<void> openDownloadsFolder() async {
 
 Future<String?> saveBase64ToDownloads({
   required String base64,
-  required String filename, // 반드시 확장자 포함 (예: image.gif / archive.zip / data.json)
-  required String mime,     // 예: image/gif, image/png, application/zip, application/json
+  required String
+  filename, // 반드시 확장자 포함 (예: image.gif / archive.zip / data.json)
+  required String
+  mime, // 예: image/gif, image/png, application/zip, application/json
 }) async {
   final bytes = base64Decode(base64);
   final uri = await _downloadsChannel.invokeMethod<String>('saveToDownloads', {
@@ -29,7 +34,6 @@ Future<String?> saveBase64ToDownloads({
   return uri;
 }
 
-
 Future<String> _getOrCreateGaUserId() async {
   final prefs = await SharedPreferences.getInstance();
   const key = 'ga_user_id';
@@ -39,7 +43,7 @@ Future<String> _getOrCreateGaUserId() async {
   if (existing != null) return existing;
 
   // 없으면 새로 만들고 저장
-  final newId = const Uuid().v4(); // 예) e4c1c7fd-1d15-4e2a-a9e7-a9b9e1…
+  final newId = const Uuid().v4(); // e4c1c7fd-1d15-4e2a-a9e7-a9b9e1…
   await prefs.setString(key, newId);
   return newId;
 }
@@ -116,6 +120,10 @@ class _WebPageState extends State<WebPage> {
                   filename: data['filename'],
                   mime: data['mime'],
                 );
+                break;
+              case 'openUrl':
+                final Uri url = Uri.parse(data['url']);
+                await launchUrl(url);
                 break;
             }
           } catch (e) {
