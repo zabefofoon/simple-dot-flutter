@@ -1,4 +1,4 @@
-package com.example.justpixelstudio
+package com.justpixel.studio
 
 
 import android.content.ContentValues
@@ -12,7 +12,7 @@ import android.app.DownloadManager
 import android.content.Intent
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.justpixelstudio/downloads"
+    private val CHANNEL = "com.justpixel.studio/downloads"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

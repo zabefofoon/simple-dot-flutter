@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -11,7 +12,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 const _downloadsChannel = MethodChannel(
-  'com.example.justpixelstudio/downloads',
+  'com.justpixel.studio/downloads',
 );
 
 Future<void> openDownloadsFolder() async {
@@ -89,7 +90,7 @@ class _WebPageState extends State<WebPage> {
     super.initState();
 
     String os = Platform.isAndroid ? "android" : "ios";
-    _controller = WebViewController()
+    _controller = WebViewController(onPermissionRequest: (req) => req.grant())
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // JS 허용
       ..setBackgroundColor(const Color(0x000000ff)) // 투명 배경
       ..addJavaScriptChannel(
@@ -200,6 +201,21 @@ class _WebPageState extends State<WebPage> {
           displayWithHybridComposition: true,
         ),
       );
+
+      final androidCtrl = _controller.platform as AndroidWebViewController;
+      androidCtrl.setOnShowFileSelector((params) async {
+        final result = await FilePicker.platform.pickFiles(
+          allowMultiple: params.mode == FileSelectorMode.openMultiple,
+          type: FileType.any,
+        );
+
+        if (result == null) return <String>[];
+        return result.files
+            .map((f) => f.path)
+            .whereType<String>()
+            .map((p) => Uri.file(p).toString())
+            .toList();
+      });
     } else {
       _webViewWidget = WebViewWidget(controller: _controller);
     }
