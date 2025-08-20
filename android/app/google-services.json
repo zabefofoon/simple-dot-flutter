@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "757294368294",
+    "project_id": "just-pixel-studio",
+    "storage_bucket": "just-pixel-studio.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:757294368294:android:63f65388924d272a5fc8e7",
+        "android_client_info": {
+          "package_name": "com.justpixel.studio"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdYDhjz27BqiddkSxt3tW9RLvrEjDgOKc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

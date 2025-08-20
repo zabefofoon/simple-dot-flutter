@@ -1,15 +1,29 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
+
+import 'firebase_options.dart';
+import 'notification_service.dart';
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // TODO: 필요한 백그라운드 로직 (예: 로컬DB 저장, 로그 전송 등)
+  debugPrint('BG message: ${message.messageId}');
+}
 
 const _downloadsChannel = MethodChannel(
   'com.justpixel.studio/downloads',
@@ -49,8 +63,42 @@ Future<String> _getOrCreateGaUserId() async {
   return newId;
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 🔸 백그라운드 핸들러 등록
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // 🔸 iOS/웹 권한 요청(알림 표시 허용 팝업)
+  final messaging = FirebaseMessaging.instance;
+  await messaging.requestPermission(); // iOS/웹용. Android 13+는 아래 별도 처리.
+
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true, badge: true, sound: true,
+  );
+
+  messaging.getToken().then((token) {
+    debugPrint(token);
+  });
+
+  if (Platform.isAndroid) {
+    final sdkInt = (await DeviceInfoPlugin().androidInfo).version.sdkInt;
+    if (sdkInt >= 33) {
+      final status = await Permission.notification.status;
+      if (!status.isGranted) {
+        await Permission.notification.request();
+      }
+    }
+  }
+
+  // 🔸 앱 포그라운드 수신
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+    debugPrint('FG message data: ${message.data}');
+    if (message.notification != null) {
+      await LocalPush.showFromMessage(message);
+    }
+  });
 
   runApp(const MyApp());
 }
@@ -92,7 +140,7 @@ class _WebPageState extends State<WebPage> {
     String os = Platform.isAndroid ? "android" : "ios";
     _controller = WebViewController(onPermissionRequest: (req) => req.grant())
       ..setJavaScriptMode(JavaScriptMode.unrestricted) // JS 허용
-      ..setBackgroundColor(const Color(0x000000ff)) // 투명 배경
+      ..setBackgroundColor(Colors.transparent) // 투명 배경
       ..addJavaScriptChannel(
         'appChannel',
         onMessageReceived: (JavaScriptMessage message) async {
