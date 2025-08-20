@@ -7,6 +7,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -16,6 +17,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import 'firebase_options.dart';
+import 'interstitial_manager.dart';
 import 'notification_service.dart';
 
 @pragma('vm:entry-point')
@@ -25,9 +27,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('BG message: ${message.messageId}');
 }
 
-const _downloadsChannel = MethodChannel(
-  'com.justpixel.studio/downloads',
-);
+const _downloadsChannel = MethodChannel('com.justpixel.studio/downloads');
 
 Future<void> openDownloadsFolder() async {
   await _downloadsChannel.invokeMethod('openDownloads');
@@ -67,6 +67,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  await MobileAds.instance.initialize();
+
   // 🔸 백그라운드 핸들러 등록
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
@@ -75,7 +77,9 @@ void main() async {
   await messaging.requestPermission(); // iOS/웹용. Android 13+는 아래 별도 처리.
 
   await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-    alert: true, badge: true, sound: true,
+    alert: true,
+    badge: true,
+    sound: true,
   );
 
   messaging.getToken().then((token) {
@@ -129,6 +133,8 @@ class WebPage extends StatefulWidget {
 class _WebPageState extends State<WebPage> {
   late final WebViewController _controller;
   late final WebViewWidget _webViewWidget;
+  final _ads = InterstitialManager();
+  bool _exiting = false;
   DateTime? currentBackPressTime;
   final WebViewCookieManager cookieManager = WebViewCookieManager();
   bool _isWebPageLoaded = false;
@@ -136,6 +142,8 @@ class _WebPageState extends State<WebPage> {
   @override
   void initState() {
     super.initState();
+
+    _ads.load();
 
     String os = Platform.isAndroid ? "android" : "ios";
     _controller = WebViewController(onPermissionRequest: (req) => req.grant())
@@ -173,6 +181,10 @@ class _WebPageState extends State<WebPage> {
               case 'openUrl':
                 final Uri url = Uri.parse(data['url']);
                 await launchUrl(url);
+                break;
+              case 'showAd':
+                final shown = await _ads.show();
+                if (!shown) _ads.load();
                 break;
             }
           } catch (e) {
@@ -226,7 +238,7 @@ class _WebPageState extends State<WebPage> {
                   WebViewCookie(
                     name: key,
                     value: value,
-                    domain: '192.168.219.107',
+                    domain: 'justpixelstudio.netlify.app',
                   ),
                 );
               }
@@ -235,7 +247,7 @@ class _WebPageState extends State<WebPage> {
         _getOrCreateGaUserId().then((uuid) {
           _controller.loadRequest(
             Uri.parse(
-              'http://192.168.219.107:3000/canvas?platform=$os&uid=$uuid&appVersion=$appVersion',
+              'https://justpixelstudio.netlify.app/canvas?platform=$os&uid=$uuid&appVersion=$appVersion',
             ),
           );
         });
@@ -322,7 +334,17 @@ class _WebPageState extends State<WebPage> {
               return;
             }
 
-            SystemNavigator.pop();
+            if (_exiting) return;
+            _exiting = true;
+
+            final shown = await _ads.show(onDismissed: () {
+              SystemNavigator.pop(); // 광고 닫힌 뒤 종료
+            });
+
+            if (!shown) {
+              // 광고가 준비 안되어 있으면 그냥 종료
+              SystemNavigator.pop();
+            }
           },
           child: Stack(
             children: [

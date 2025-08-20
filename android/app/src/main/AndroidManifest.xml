@@ -8,6 +8,9 @@
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
         android:usesCleartextTraffic="true">
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-5005353607231126~1804917471"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
