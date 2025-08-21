@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class LocalPush {
   static final FlutterLocalNotificationsPlugin _plugin =
-  FlutterLocalNotificationsPlugin();
+      FlutterLocalNotificationsPlugin();
 
   // Android 8.0+ 채널
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
@@ -15,6 +16,7 @@ class LocalPush {
   );
 
   static final _tapController = StreamController<String>.broadcast();
+
   static Stream<String> get taps => _tapController.stream;
 
   static Future<void> init() async {
@@ -26,8 +28,10 @@ class LocalPush {
       requestSoundPermission: false,
     );
 
-    const initSettings =
-    InitializationSettings(android: androidInit, iOS: darwinInit);
+    const initSettings = InitializationSettings(
+      android: androidInit,
+      iOS: darwinInit,
+    );
 
     await _plugin.initialize(
       initSettings,
@@ -37,13 +41,15 @@ class LocalPush {
           _tapController.add(payload);
         }
       },
-      onDidReceiveBackgroundNotificationResponse: notificationTapBackground, // 선택
+      onDidReceiveBackgroundNotificationResponse:
+          notificationTapBackground, // 선택
     );
 
     // Android 채널 생성
     await _plugin
         .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
+          AndroidFlutterLocalNotificationsPlugin
+        >()
         ?.createNotificationChannel(_channel);
   }
 
@@ -56,7 +62,8 @@ class LocalPush {
 
     final details = NotificationDetails(
       android: AndroidNotificationDetails(
-        _channelId, _channelName,
+        _channelId,
+        _channelName,
         channelDescription: _channelDescription,
         importance: Importance.high,
         priority: Priority.high,
@@ -69,7 +76,9 @@ class LocalPush {
   }
 
   static String get _channelId => _channel.id;
+
   static String get _channelName => _channel.name;
+
   static String? get _channelDescription => _channel.description;
 }
 
