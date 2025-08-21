@@ -16,6 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 
+import 'banner_manager.dart';
 import 'firebase_options.dart';
 import 'interstitial_manager.dart';
 import 'notification_service.dart';
@@ -56,6 +57,7 @@ class _WebPageState extends State<WebPage> {
   late final WebViewController _controller;
   late final WebViewWidget _webViewWidget;
   final _ads = InterstitialManager();
+  final _banner = BannerManager();
   bool _exiting = false;
   DateTime? currentBackPressTime;
   final WebViewCookieManager cookieManager = WebViewCookieManager();
@@ -75,7 +77,9 @@ class _WebPageState extends State<WebPage> {
       },
     );
 
-    _ads.load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _banner.load(context, useAdaptive: true);
+    });
 
     String os = Platform.isAndroid ? "android" : "ios";
     _controller = WebViewController(onPermissionRequest: (req) => req.grant())
@@ -112,6 +116,18 @@ class _WebPageState extends State<WebPage> {
               case 'showAd':
                 final shown = await _ads.show();
                 if (!shown) _ads.load();
+                break;
+              case 'showBannerAd': // ✅ JS에서 배너 표시/숨김 제어
+                final visible = data['visible'] == true;
+                if (visible) {
+                  // 배너가 아직 로드 안됐다면(실패 등) 재로드 시도
+                  if (!_banner.isReady.value) {
+                    await _banner.load(context, useAdaptive: true);
+                  }
+                  _banner.show();
+                } else {
+                  _banner.hide();
+                }
                 break;
             }
           } catch (e) {
@@ -179,6 +195,12 @@ class _WebPageState extends State<WebPage> {
   }
 
   @override
+  void dispose() {
+    _banner.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
 
@@ -223,6 +245,7 @@ class _WebPageState extends State<WebPage> {
           ),
         ),
       ),
+      bottomNavigationBar: _banner.buildBottomBar(),
     );
   }
 }
