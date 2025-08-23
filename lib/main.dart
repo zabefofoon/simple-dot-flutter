@@ -241,11 +241,17 @@ class _WebPageState extends State<WebPage> {
             if (!shown) SystemNavigator.pop();
           },
           child: Stack(
-            children: [_webViewWidget, if (!_isWebPageLoaded) SpinnerOverlay()],
+            children: [
+              _webViewWidget,
+              if (!_isWebPageLoaded) SpinnerOverlay(),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _banner.buildBottomBar(),
+              ),
+            ],
           ),
         ),
       ),
-      bottomNavigationBar: _banner.buildBottomBar(),
     );
   }
 }

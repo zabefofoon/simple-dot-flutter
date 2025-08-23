@@ -21,7 +21,7 @@ class LocalPush {
 
   static Future<void> init() async {
     // 초기화 (아이콘은 @mipmap/ic_launcher 사용, 필요시 커스텀 가능)
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
     const darwinInit = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -67,7 +67,7 @@ class LocalPush {
         channelDescription: _channelDescription,
         importance: Importance.high,
         priority: Priority.high,
-        icon: '@mipmap/ic_launcher',
+        icon: '@mipmap/launcher_icon',
       ),
       iOS: const DarwinNotificationDetails(),
     );
